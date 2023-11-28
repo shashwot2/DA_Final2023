@@ -1,3 +1,13 @@
+#Datasets
+sub.txt
+tag.txt
+pre.txt
+num.txt
+cohort_project_details.txt
+enterprise_projects.csv
+enterprise_projects.txt
+
+
 # History files
 .Rhistory
 .Rapp.history
