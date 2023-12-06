@@ -7,6 +7,9 @@ cohort_project_details.txt
 enterprise_projects.csv
 enterprise_projects.txt
 
+#CIK data because they are huge files
+/CIKData
+/processed_ciks
 
 # History files
 .Rhistory
