@@ -93,11 +93,6 @@ hist(cleaned_combined_data$committer_count, main = "Histogram of commiter count"
 length(cleaned_combined_data$values_2020)
 #Since we want to do analysis on values which has NAs we're going to remove them.
 
-#I want to define a artibrary value of 2 billion and above as High-market cap
-# cleaned_combined_data <- cleaned_combined_data %>%
-  # mutate(values_2020_group = ifelse(values_2020 >= 2e9, 1, 0))
-library(dplyr)
-# Adding a new column 'values_group' to classify 'values_2020' as above (1) or below (0) 2 billion
 cleaned_combined_data <- cleaned_combined_data %>%
   mutate(above2b = ifelse(values_2020 >= 2e9, "y", "n"))
 cleaned_combined_data$above2b
@@ -116,9 +111,6 @@ heatmap(correlation_matrix, symm = TRUE,
 summary(cleaned_combined_data$values_2020)
 boxplot(committer_count ~ values_2020, data = cleaned_combined_data, main = "Author Count by pub traded market cap", xlab = "Publicly traded market-cap", ylab = "Author Count")
 
-# data_selected <- cleaned_combined_data %>% select(star_number, pull_requests, commit_count, values_2020)
-# data_clean <- na.omit(data_selected)
-set.seed(42) # for reproducibility
 train_indices <- sample(1:nrow(cleaned_combined_data), 0.8 * nrow(cleaned_combined_data))
 train_data <- cleaned_combined_data[train_indices, ]
 test_data <- cleaned_combined_data[-train_indices, ]
@@ -149,9 +141,7 @@ cooks_dist_clean <- cooks.distance(regression_model_clean)
 summary(regression_model_before_outlier)
 summary(regression_model_clean)
 summary(predictions)
-# We have identified outliers and 
-library(class)
-library(caret)
+
 count_above_below_2b <- table(cleaned_combined_data$above2b)
 
 print(count_above_below_2b)
@@ -163,16 +153,13 @@ cleaned_combined_data$above5b <- ifelse(cleaned_combined_data$values_2020 >= 5e9
 count_above_below_5b <- table(cleaned_combined_data$above5b)
 print(count_above_below_5b)
 
-# Adjusting the threshold to 10 billion
+# Adjusting the threshold to 10 billion for creating a categorical variable which is gonna be useful
 cleaned_combined_data$above10b <- ifelse(cleaned_combined_data$values_2020 >= 1e10, "y", "n")
 
-# Count the new distribution
 count_above_below_10b <- table(cleaned_combined_data$above10b)
 print(count_above_below_10b)
-# Load necessary libraries
 cleaned_combined_data$above
 
-# Set a seed for reproducibility
 set.seed(42)
 cleaned_combined_data
 print(names(cleaned_combined_data))
@@ -180,33 +167,24 @@ print(names(cleaned_combined_data))
 # Remove rows with NA values in the columns used for scaling
 cleaned_combined_data <- na.omit(cleaned_combined_data[, c("committer_count", "above10b")])
 
-# Split data into train and test sets (80-20 split)
 train_indices <- sample(1:nrow(cleaned_combined_data), 0.8 * nrow(cleaned_combined_data))
 test_indices <- setdiff(1:nrow(cleaned_combined_data), train_indices)
 
-# Create train and test datasets
 train_data <- cleaned_combined_data[train_indices, ]
 test_data <- cleaned_combined_data[test_indices, ]
 
-# Extract labels before scaling
 train_labels <- train_data$above10b
 test_labels <- test_data$above10b
 
-# Scale your features
-# Assuming 'committer_count' and 'star_number' are the features
 train_data_scaled <- scale(train_data[, c("committer_count")])
 test_data_scaled <- scale(test_data[, c("committer_count")])
 
-
 k <- 3
-# Predict on the test data using kNN
 test_data_predictions <- knn(train = train_data_scaled, test = test_data_scaled, cl = train_labels, k = k)
 
-# Evaluate the model using a confusion matrix
 confusion_matrix <- table(Predicted = test_data_predictions, Actual = test_labels)
 print(confusion_matrix)
 
-# Calculate accuracy
 accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
 print(paste("Accuracy:", accuracy))
 precision <- confusion_matrix[2, 2] / sum(confusion_matrix[2, ])
@@ -220,7 +198,6 @@ print(paste("F1 Score:", f1_score))
 # Convert the confusion matrix to a data frame for plotting
 confusion_matrix_df <- as.data.frame(as.table(confusion_matrix))
 
-# Plot the confusion matrix using ggplot2
 ggplot(confusion_matrix_df, aes(x = Actual, y = Predicted, fill = Freq)) +
   geom_tile(color = "white") +
   geom_text(aes(label = sprintf("%d", Freq)), vjust = 1) +
@@ -234,20 +211,45 @@ ggplot(confusion_matrix_df, aes(x = Actual, y = Predicted, fill = Freq)) +
                         "Recall:", round(recall, 3), 
                         "F1 Score:", round(f1_score, 3)))
 
+#SVM 
+cleaned_combined_data$above10b <- as.factor(cleaned_combined_data$above10b)
+svm_model <- svm(above10b ~ committer_count + values_2020 + star_number + author_count, 
+                 data=cleaned_combined_data)
+summary(svm_model)
 
-# Fit the SVR model
-# Here 'values_2021' is used as the predictor
-svm_regressor <- svm(committer_count ~ values_2020 + star_number + author_count, data = train_data)
-summary(svm_regressor)
 train_control <- trainControl(method = "cv", number = 10) # 10-fold CV
-
 set.seed(42) # for reproducibility
-svm_model_cv <- train(committer_count ~ values_2020 + star_number + author_count, 
-                      data = train_data, 
+svm_model_cv <- train(above10b ~ committer_count + values_2020 + star_number + author_count, 
+                      data = cleaned_combined_data, 
                       method = "svmRadial", 
                       trControl = train_control)
 
 print(svm_model_cv)
+
+splitIndex <- createDataPartition(cleaned_combined_data$above10b, p = .7, list = TRUE)
+train_data <- cleaned_combined_data[ splitIndex$Resample1,]
+test_data  <- cleaned_combined_data[-splitIndex$Resample1,]
+
+train_data$above10b <- as.factor(train_data$above10b)
+test_data$above10b <- as.factor(test_data$above10b)
+
+svm_model <- svm(above10b ~ committer_count + values_2020 + star_number + author_count, 
+                 data = train_data, 
+                 type = 'C-classification', 
+                 kernel = 'radial', 
+                 cost = 1.00, 
+                 gamma = 1/10.43199)
+summary(svm_model)
+full_predictions <- predict(svm_model, test_data[, c("committer_count", "values_2020", "star_number", "author_count")])
+confusionMatrix(full_predictions, test_data$above10b)
+
+feature_importance <- data.frame(Feature = colnames(train_data[, -which(colnames(train_data) == "above10b")]), 
+                                 Importance = svm_model$coef[[1]])
+
+ggplot(feature_importance, aes(x = reorder(Feature, Importance), y = Importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Feature Importance in SVM Model", x = "Feature", y = "Importance")
 
 ## RANDOM FOREST
 train_indices <- sample(1:nrow(cleaned_combined_data), 0.8 * nrow(cleaned_combined_data))
